@@ -1,0 +1,94 @@
+mql5
+//+------------------------------------------------------------------+
+//|                                                   Neuron Net USDCHF |
+//|                                       Developed by Forex Robot Easy Team |
+//|                                                 www.forexroboteasy.com |
+//+------------------------------------------------------------------+
+
+// Import necessary libraries
+#include <PythonBridge.mqh>
+
+// Define constants
+#define SYMBOL 'USDCHF'
+#define TIMEFRAME PERIOD_H1
+#define LOT_SIZE 0.01
+#define STOP_LOSS 30
+#define TAKE_PROFIT 50
+
+// Initialize AI module
+void InitAI()
+{
+    // Connect to Python program
+    PythonBridge::Init();
+
+    // Load trained model
+    PythonBridge::LoadModel('model_usdchf.pkl');
+
+    // Set up data collection and processing
+    PythonBridge::SetupDataCollection();
+}
+
+// Perform trading operations
+void Trade()
+{
+    double prediction = PythonBridge::PredictPrice('USDCHF');
+
+    // Determine optimal moments for entering and exiting trades
+    if (prediction > 0.5)
+    {
+        // Open a long position
+        double entryPrice = SymbolInfoDouble(SYMBOL, SYMBOL_ASK);
+        double stopLossPrice = entryPrice - STOP_LOSS * SymbolInfoDouble(SYMBOL, SYMBOL_POINT);
+        double takeProfitPrice = entryPrice + TAKE_PROFIT * SymbolInfoDouble(SYMBOL, SYMBOL_POINT);
+
+        OrderSend(SYMBOL, OP_BUY, LOT_SIZE, entryPrice, 0, stopLossPrice, takeProfitPrice);
+    }
+    else if (prediction < 0.5)
+    {
+        // Open a short position
+        double entryPrice = SymbolInfoDouble(SYMBOL, SYMBOL_BID);
+        double stopLossPrice = entryPrice + STOP_LOSS * SymbolInfoDouble(SYMBOL, SYMBOL_POINT);
+        double takeProfitPrice = entryPrice - TAKE_PROFIT * SymbolInfoDouble(SYMBOL, SYMBOL_POINT);
+
+        OrderSend(SYMBOL, OP_SELL, LOT_SIZE, entryPrice, 0, stopLossPrice, takeProfitPrice);
+    }
+}
+
+// Main program
+void OnTick()
+{
+    // Check if enough bars are available for prediction
+    if (Bars < PythonBridge::GetRequiredBars())
+        return;
+
+    // Collect and process data for predicting price variations
+    PythonBridge::CollectData();
+    PythonBridge::ProcessData();
+
+    // Perform trading operations
+    if (PythonBridge::IsDataReady())
+        Trade();
+}
+
+// Program initialization
+void OnStart()
+{
+    // Initialize AI module
+    InitAI();
+
+    // Set up trading parameters
+    SymbolSetDouble(SYMBOL, SYMBOL_TRADE_STOPS_LEVEL, STOP_LOSS * SymbolInfoDouble(SYMBOL, SYMBOL_POINT));
+
+    // Enable trading
+    TradingAllowed(true);
+}
+
+// Program termination
+void OnDeinit(const int reason)
+{
+    // Disconnect from Python program
+    PythonBridge::Shutdown();
+
+    // Disable trading
+    TradingAllowed(false);
+}
